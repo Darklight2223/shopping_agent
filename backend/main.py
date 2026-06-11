@@ -1,26 +1,28 @@
 from dotenv import load_dotenv
 import os
+import re
+import json
 
 from sentence_transformers import SentenceTransformer
 from supabase import create_client
 from groq import Groq
 
+
 load_dotenv()
 
-# -----------------------------
-# CONFIG
-# -----------------------------
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-TOP_K = 5
-max_price = 500
+TOP_K = 20
+DEFAULT_MAX_PRICE = 500
 
-# -----------------------------
-# CLIENTS
-# -----------------------------
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+
+supabase = create_client(
+    SUPABASE_URL,
+    SUPABASE_KEY
+)
 
 client = Groq(
     api_key=GROQ_API_KEY
@@ -30,24 +32,84 @@ embedding_model = SentenceTransformer(
     "BAAI/bge-small-en-v1.5"
 )
 
-import re
+
 
 def parse_price(price):
+
     if not price:
         return 0.0
 
-    cleaned = re.sub(r"[^\d.]", "", str(price))
+    cleaned = re.sub(
+        r"[^\d.]",
+        "",
+        str(price)
+    )
 
     try:
         return float(cleaned)
-    except:
+    except Exception:
         return 0.0
 
 
-# -----------------------------
-# SEARCH FUNCTION
-# -----------------------------
-def search_products(query: str):
+
+def extract_query(query: str):
+
+    prompt = f"""
+Extract shopping constraints from the user query.
+
+User Query:
+{query}
+
+Return ONLY valid JSON.
+
+Schema:
+
+{{
+    "product_type": "",
+    "category": "",
+    "max_price": null,
+    "features": []
+}}
+"""
+
+    try:
+
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            temperature=0,
+            response_format={
+                "type": "json_object"
+            }
+        )
+
+        return json.loads(
+            response.choices[0].message.content
+        )
+
+    except Exception as e:
+
+        print("Query extraction failed:", e)
+
+        return {
+            "product_type": "",
+            "category": "",
+            "max_price": DEFAULT_MAX_PRICE,
+            "features": []
+        }
+
+
+
+
+def search_products(
+    query: str,
+    max_price: float
+):
 
     query_embedding = embedding_model.encode(
         query,
@@ -68,52 +130,105 @@ def search_products(query: str):
     if not products:
         return []
 
-    # discount percentage
     for p in products:
 
-        actual = parse_price(p.get("actual_price", 0))
-        discount = parse_price(p.get("discount_price", 0))
+        actual = parse_price(
+            p.get("actual_price")
+        )
+
+        discount = parse_price(
+            p.get("discount_price")
+        )
 
         if actual > 0:
-            p["discount_percent"] = (
-                (actual - discount) / actual
-            ) * 100
+
+            p["discount_percent"] = round(
+                ((actual - discount) / actual) * 100,
+                2
+            )
+
         else:
+
             p["discount_percent"] = 0
 
-    # sort by discount descending
-    products.sort(
-        key=lambda x: x["discount_percent"],
-        reverse=True
-    )
-
-    return products[:5]
+    return products
 
 
-# -----------------------------
-# LLM RECOMMENDATION
-# -----------------------------
-def recommend(query, products):
+
+def prepare_products(products):
+
+    cleaned = []
+
+    for p in products:
+
+        cleaned.append(
+            {
+                "name": p.get("name"),
+                "category": p.get("main_category"),
+                "rating": p.get("ratings"),
+                "actual_price": p.get("actual_price"),
+                "discount_price": p.get("discount_price"),
+                "discount_percent": p.get(
+                    "discount_percent"
+                )
+            }
+        )
+
+    return cleaned
+
+def filter_by_budget(products, max_price):
+    filtered = []
+    for p in products:
+        price = parse_price(p.get("discount_price"))
+        if price <= max_price and p.get("name"):
+            filtered.append(p)
+    return filtered
+
+
+def recommend(
+    query,
+    extracted_query,
+    products
+):
 
     prompt = f"""
+You are a shopping recommendation assistant.
+
 User Query:
 {query}
 
-Products:
-{products}
+Extracted Constraints:
+{json.dumps(extracted_query, indent=2)}
 
-Analyze these products and recommend the best options.
+Candidate Products:
+{json.dumps(products, indent=2)}
 
-For each product include:
-- Name
-- Category
-- Rating
-- Actual Price
-- Discount Price
-- Discount %
-- Why it matches user query
+Rules:
 
-Keep response concise.
+1. Recommend only relevant products.
+2. Do not invent products.
+3. No duplicates.
+4. Respect budget constraints.
+5. If no suitable products exist, return empty recommendations.
+6. Prefer higher ratings and better discounts.
+
+Return ONLY JSON.
+
+Schema:
+
+{{
+    "recommendations": [
+        {{
+            "name": "",
+            "category": "",
+            "rating": "",
+            "actual_price": "",
+            "discount_price": "",
+            "discount_percent": "",
+            "reason": ""
+        }}
+    ]
+}}
 """
 
     response = client.chat.completions.create(
@@ -124,45 +239,91 @@ Keep response concise.
                 "content": prompt
             }
         ],
-        temperature=0.2
+        temperature=0.2,
+        response_format={
+            "type": "json_object"
+        }
     )
 
-    return response.choices[0].message.content
+    return json.loads(
+        response.choices[0].message.content
+    )
 
 
-# -----------------------------
-# MAIN
-# -----------------------------
-query = input("Search Product: ")
+def main():
 
-products = search_products(query)
+    query = input(
+        "Search Product: "
+    ).strip()
 
-if not products:
-    print("No products found.")
-else:
+    if not query:
 
-    print("\nTop 5 Products:\n")
-
-    for p in products:
-
-        print("=" * 60)
-
-        print("Name:", p.get("name"))
-        print("Main Category:", p.get("main_category"))
-        print("Sub Category:", p.get("sub_category"))
-        print("Rating:", p.get("ratings"))
-        print("Actual Price:", p.get("actual_price"))
-        print("Discount Price:", p.get("discount_price"))
         print(
-            "Discount %:",
-            round(p.get("discount_percent", 0), 2)
+            "Please enter a valid query."
         )
+        return
 
-    print("\n\nAI Recommendation:\n")
+    print("\nExtracting query...\n")
 
-    recommendation = recommend(
-        query,
-        products
+    extracted_query = extract_query(
+        query
     )
 
-    print(recommendation)
+    print(
+        json.dumps(
+            extracted_query,
+            indent=2
+        )
+    )
+
+    max_price = (
+        extracted_query.get(
+            "max_price"
+        )
+        or DEFAULT_MAX_PRICE
+    )
+
+    print("\nSearching products...\n")
+
+    products = search_products(
+        query=query,
+        max_price=max_price
+    )
+
+    if not products:
+
+        print("No products found.")
+        return
+
+    print(
+        f"Retrieved {len(products)} products."
+    )
+
+    cleaned_products = prepare_products(products)
+    cleaned_products = filter_by_budget(cleaned_products, max_price)
+
+    print(
+        "\nGenerating recommendations...\n"
+    )
+
+    recommendations = recommend(
+        query=query,
+        extracted_query=extracted_query,
+        products=cleaned_products
+    )
+
+    print("=" * 80)
+    print("AI RECOMMENDATIONS")
+    print("=" * 80)
+
+    print(
+        json.dumps(
+            recommendations,
+            indent=2,
+            ensure_ascii=False
+        )
+    )
+
+
+if __name__ == "__main__":
+    main()
