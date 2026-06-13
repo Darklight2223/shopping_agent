@@ -1,6 +1,7 @@
 ﻿'use client';
 
 import { useEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
 
 const quickPrompts = [
   "Find a minimalist desk lamp under $80",
@@ -135,7 +136,7 @@ export default function Page() {
   const handleFileChange = (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    
+
     if (image?.url) {
       URL.revokeObjectURL(image.url);
     }
@@ -155,10 +156,10 @@ export default function Page() {
 
   return (
     <div className="flex h-screen w-full bg-[#171717] text-slate-100 font-sans overflow-hidden">
-      
+
       {/* Sidebar - Desktop */}
       <aside className="hidden md:flex w-[260px] flex-col bg-[#0d0d0d] border-r border-[#2a2a2a] p-3 shrink-0">
-        <button 
+        <button
           onClick={handleClearChat}
           className="flex w-full items-center gap-2 rounded-lg bg-[#171717] px-3 py-2 text-sm text-slate-200 transition hover:bg-[#212121] border border-[#2a2a2a]"
         >
@@ -180,7 +181,7 @@ export default function Page() {
             <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
           </label>
           {image && (
-             <button onClick={() => setImage(null)} className="mt-1 text-xs text-red-400 hover:text-red-300 text-left">Remove image</button>
+            <button onClick={() => setImage(null)} className="mt-1 text-xs text-red-400 hover:text-red-300 text-left">Remove image</button>
           )}
         </div>
 
@@ -191,9 +192,8 @@ export default function Page() {
               <button
                 key={mode.key}
                 onClick={() => toggleMode(mode.key)}
-                className={`flex items-center justify-between rounded-lg px-2 py-2 text-sm transition ${
-                  modes[mode.key] ? "bg-[#212121] text-slate-200" : "text-[#888] hover:bg-[#1a1a1a]"
-                }`}
+                className={`flex items-center justify-between rounded-lg px-2 py-2 text-sm transition ${modes[mode.key] ? "bg-[#212121] text-slate-200" : "text-[#888] hover:bg-[#1a1a1a]"
+                  }`}
               >
                 <span>{mode.label}</span>
                 <div className={`h-3 w-6 rounded-full transition-colors ${modes[mode.key] ? "bg-white" : "bg-[#444]"}`}>
@@ -221,54 +221,88 @@ export default function Page() {
                 <div key={message.id} className={`flex w-full ${isUser ? "justify-end" : "justify-start"}`}>
                   {!isUser && (
                     <div className="mr-4 mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#171717] border border-[#333]">
-                       <span className="text-white text-xs">AI</span>
+                      <span className="text-white text-xs">AI</span>
                     </div>
                   )}
-                  <div className={`max-w-[85%] md:max-w-[75%] ${isUser ? "bg-[#333] rounded-3xl px-5 py-3 text-slate-100" : "pt-1.5 text-slate-200"}`}>
+                  {/* <div className={`max-w-[85%] md:max-w-[75%] ${isUser ? "bg-[#333] rounded-3xl px-5 py-3 text-slate-100" : "pt-1.5 text-slate-200"}`}>
                     {message.text && <p className="leading-relaxed text-[15px] whitespace-pre-wrap">{message.text}</p>}
-                    {message.image && (
-                      <div className="mt-3 overflow-hidden rounded-xl border border-[#444]">
-                        <img src={message.image} alt="User upload" className="max-h-64 object-cover" />
-                      </div>
-                    )}
-                    {message.products && message.products.length > 0 && (
-                      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                        {message.products.map((product) => (
-                          <div
-                            key={product.id}
-                            className="rounded-2xl border border-[#3a3a3a] bg-[#1c1c1c] p-3"
-                          >
-                            {product.image_url && (
-                              <img
-                                src={product.image_url}
-                                alt={product.name}
-                                className="mb-2 h-28 w-full rounded-xl object-cover"
-                              />
-                            )}
-                            <p className="text-sm text-slate-100">{product.name}</p>
-                            <div className="mt-2 flex flex-wrap gap-2 text-xs text-[#9c9c9c]">
-                              {product.rating && (
-                                <span>Rating {product.rating}</span>
-                              )}
-                              {product.discount && (
-                                <span>Discount {product.discount}%</span>
-                              )}
-                              {product.price && <span>${product.price}</span>}
-                              {product.similarity && (
-                                <span>Similarity {product.similarity}</span>
-                              )}
-                            </div>
-                            <div className="mt-3 flex items-center justify-between">
-                              <span className="text-[11px] text-[#6b6b6b]">
-                                {product.main_category}
-                              </span>
-                              <button className="rounded-full border border-[#333] px-3 py-1 text-[11px] text-slate-200 transition hover:bg-[#2a2a2a]">
-                                Save
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
+                  </div> */}
+                  <div
+                    className={`max-w-[85%] md:max-w-[75%] ${isUser
+                      ? "bg-[#333] rounded-3xl px-5 py-3 text-slate-100"
+                      : "pt-1.5 text-slate-200"
+                      }`}
+                  >
+                    {message.text && (
+                      <ReactMarkdown
+                        components={{
+                          h1: ({ children }) => (
+                            <h1 className="text-3xl md:text-4xl font-bold mt-8 mb-5 text-white border-b border-[#444] pb-2">
+                              {children}
+                            </h1>
+                          ),
+
+                          h2: ({ children }) => (
+                            <h2 className="text-2xl font-bold mt-6 mb-3 text-blue-300">
+                              {children}
+                            </h2>
+                          ),
+
+                          h3: ({ children }) => (
+                            <h3 className="text-xl font-semibold mt-5 mb-2 text-green-300">
+                              {children}
+                            </h3>
+                          ),
+
+                          p: ({ children }) => (
+                            <p className="mb-3 leading-7 text-[15px]">
+                              {children}
+                            </p>
+                          ),
+
+                          ul: ({ children }) => (
+                            <ul className="list-disc ml-5 mb-3">
+                              {children}
+                            </ul>
+                          ),
+
+                          ol: ({ children }) => (
+                            <ol className="list-decimal ml-5 mb-3">
+                              {children}
+                            </ol>
+                          ),
+
+                          li: ({ children }) => (
+                            <li className="mb-1">
+                              {children}
+                            </li>
+                          ),
+
+                          hr: () => (
+                            <div className="my-6 border-t border-[#555]" />
+                          ),
+
+                          strong: ({ children }) => (
+                            <strong className="font-bold text-white">
+                              {children}
+                            </strong>
+                          ),
+
+                          em: ({ children }) => (
+                            <em className="italic text-slate-300">
+                              {children}
+                            </em>
+                          ),
+
+                          blockquote: ({ children }) => (
+                            <blockquote className="border-l-4 border-[#666] pl-4 my-3 text-slate-300">
+                              {children}
+                            </blockquote>
+                          ),
+                        }}
+                      >
+                        {message.text}
+                      </ReactMarkdown>
                     )}
                   </div>
                 </div>
@@ -281,7 +315,7 @@ export default function Page() {
         {/* Input Box Area */}
         <div className="w-full bg-[#212121] pb-6 pt-2 px-4 md:px-8 shrink-0">
           <div className="mx-auto w-full max-w-3xl relative">
-            
+
             {messages.length === 1 && (
               <div className="mb-4 flex flex-wrap justify-center gap-2">
                 {quickPrompts.map((prompt) => (
@@ -297,21 +331,21 @@ export default function Page() {
             )}
 
             <div className="relative flex flex-col rounded-3xl border border-[#444] bg-[#2f2f2f] focus-within:border-[#666] transition-colors shadow-sm">
-              
+
               {/* Floating attached image */}
               {image && (
-                 <div className="absolute -top-14 left-2 flex items-center gap-2 rounded-lg border border-[#444] bg-[#2a2a2a] p-1.5 shadow-md">
-                   <img src={image.url} alt="To send" className="h-9 w-9 rounded object-cover" />
-                   <div className="flex flex-col max-w-[120px]">
-                     <span className="text-xs text-slate-200 truncate">{image.name || 'Image'}</span>
-                     <span className="text-[10px] text-[#888]">Attached</span>
-                   </div>
-                   <button onClick={() => setImage(null)} className="ml-1 mr-1 text-[#888] hover:text-white">
-                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                   </button>
-                 </div>
+                <div className="absolute -top-14 left-2 flex items-center gap-2 rounded-lg border border-[#444] bg-[#2a2a2a] p-1.5 shadow-md">
+                  <img src={image.url} alt="To send" className="h-9 w-9 rounded object-cover" />
+                  <div className="flex flex-col max-w-[120px]">
+                    <span className="text-xs text-slate-200 truncate">{image.name || 'Image'}</span>
+                    <span className="text-[10px] text-[#888]">Attached</span>
+                  </div>
+                  <button onClick={() => setImage(null)} className="ml-1 mr-1 text-[#888] hover:text-white">
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                  </button>
+                </div>
               )}
-              
+
               <textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
@@ -325,12 +359,12 @@ export default function Page() {
                 placeholder="Message Shopping Agent..."
                 className="max-h-48 min-h-[56px] w-full resize-none rounded-3xl bg-transparent px-4 py-[16px] pr-14 text-[15px] text-slate-100 placeholder:text-[#888] focus:outline-none chat-scrollbar"
               />
-              
+
               <div className="absolute bottom-[8px] right-2 flex gap-1">
                 {/* Mobile image attach button */}
                 <label className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full text-[#888] transition hover:bg-[#3a3a3a] hover:text-white md:hidden">
-                   <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
-                   <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                  <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
                 </label>
 
                 <button
@@ -347,7 +381,7 @@ export default function Page() {
               </div>
 
             </div>
-            
+
             <p className="mt-3 text-center text-xs text-[#666]">
               Shopping Agent may produce inaccurate information. Please double check details.
             </p>
