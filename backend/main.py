@@ -1,11 +1,14 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi import UploadFile, File, Form
 from pydantic import BaseModel
+import os
 
 from config import DEFAULT_MAX_PRICE
 
 from services import (
     extract_query,
+    recommend_from_image,
     search_products,
     recommend
 )
@@ -98,6 +101,37 @@ def chat(request: ChatRequest):
             detail=str(e)
         )
 
+
+@app.post("/image-search")
+async def image_search(
+    file: UploadFile = File(...),
+    session_id: str = Form(...),
+    message: str = Form("")
+
+):
+    try:
+
+        os.makedirs("uploads", exist_ok=True)
+
+        image_path = f"uploads/{file.filename}"
+
+        with open(image_path, "wb") as f:
+            f.write(await file.read())
+
+        result = recommend_from_image(
+            image_path,
+            message
+        )
+
+        return {
+            "message": result
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
 
 if __name__ == "__main__":
     import uvicorn

@@ -43,6 +43,8 @@ export default function Page() {
 
   const messagesEndRef = useRef(null);
 
+  const fileInputRef = useRef(null);
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -91,6 +93,10 @@ export default function Page() {
         formData.append("file", image.file);
         formData.append("session_id", sessionIdRef.current);
 
+        formData.append(
+          "message", `${trimmed}${buildModeHint()}`
+        )
+
         response = await fetch(`${apiBase}/image-search`, {
           method: "POST",
           body: formData,
@@ -130,6 +136,9 @@ export default function Page() {
     } finally {
       setIsLoading(false);
       setImage(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = null;
+      }
     }
   };
 
@@ -141,6 +150,7 @@ export default function Page() {
       URL.revokeObjectURL(image.url);
     }
     setImage({ file, url: URL.createObjectURL(file), name: file.name });
+    event.target.value = null; // Reset file input
   };
 
   const handleClearChat = () => {
@@ -178,7 +188,7 @@ export default function Page() {
                 <span className="text-xs text-[#888]">Upload image</span>
               </>
             )}
-            <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
           </label>
           {image && (
             <button onClick={() => setImage(null)} className="mt-1 text-xs text-red-400 hover:text-red-300 text-left">Remove image</button>

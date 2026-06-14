@@ -1,4 +1,5 @@
 import json
+import base64
 from typing import List
 
 from pydantic import BaseModel
@@ -21,6 +22,12 @@ class QueryExtraction(BaseModel):
     max_price: int
     features: List[str]
 
+class ImageProductInfo(BaseModel):
+    product_type: str
+    category: str
+    features: List[str]
+    color: str
+    style: str
 
 # class Recommendation(BaseModel):
 #     name: str
@@ -155,3 +162,96 @@ def recommend(
     print(result.content)
 
     return result.content
+
+
+def extract_from_image(image_path):
+    with open(image_path, "rb") as f:
+        image_base64 = base64.b64encode(
+            f.read()
+        ).decode()
+
+    vision_llm = ChatGroq(
+        model="meta-llama/llama-4-scout-17b-16e-instruct",
+        api_key=GROQ_API_KEY,
+        temperature=0
+    )
+
+    structured_llm = vision_llm.with_structured_output(
+        ImageProductInfo
+    )
+
+    prompt = """
+    Analyze this image.
+
+    Extract:
+    - product_type
+    - category
+    - color
+    - style
+    - important product features
+
+    Return only structured output.
+    """
+
+    result = structured_llm.invoke(
+        [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": prompt
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/jpeg;base64,{image_base64}"
+                        }
+                    }
+                ]
+            }
+        ]
+    )
+
+    return result.model_dump()
+
+def image_to_query(info):
+
+    parts = [
+        info.get("product_type", ""),
+        info.get("category", ""),
+        info.get("color", ""),
+        info.get("style", ""),
+        *info.get("features", [])
+    ]
+
+    return " ".join(
+        str(p) for p in parts if p
+    )
+
+def recommend_from_image(image_path, message):
+
+    image_info = extract_from_image(
+        image_path
+    )
+
+    query = image_to_query(
+        image_info
+    )
+
+    products = search_products(
+        query=query+" "+message,
+        max_price=DEFAULT_MAX_PRICE
+    )
+
+    products = add_discount_percentage(
+        products
+    )
+
+    res = recommend(
+        query=query+" "+message,
+        extracted_query=image_info,
+        products=products[:10]
+    )
+
+    return res
