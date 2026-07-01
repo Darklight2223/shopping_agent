@@ -164,7 +164,7 @@ def recommend(
     return result.content
 
 
-def extract_from_image(image_path):
+def extract_from_image(image_path, message=""):
     with open(image_path, "rb") as f:
         image_base64 = base64.b64encode(
             f.read()
@@ -180,7 +180,8 @@ def extract_from_image(image_path):
         ImageProductInfo
     )
 
-    prompt = """
+    text_prompt = (message or "").strip()
+    prompt = f"""
     Analyze this image.
 
     Extract:
@@ -189,6 +190,12 @@ def extract_from_image(image_path):
     - color
     - style
     - important product features
+
+    The user also provided this shopping text prompt:
+    {text_prompt if text_prompt else 'No additional text prompt.'}
+
+    Use the text prompt as extra context for the product analysis.
+    If the text mentions style, budget, brand, color, features, or category, reflect that in the extraction.
 
     Return only structured output.
     """
@@ -215,8 +222,8 @@ def extract_from_image(image_path):
 
     return result.model_dump()
 
-def image_to_query(info):
 
+def image_to_query(info, message=""):
     parts = [
         info.get("product_type", ""),
         info.get("category", ""),
@@ -225,23 +232,45 @@ def image_to_query(info):
         *info.get("features", [])
     ]
 
+    if message:
+        parts.append(message.strip())
+
     return " ".join(
         str(p) for p in parts if p
     )
 
+
 def recommend_from_image(image_path, message):
+    message = (message or "").strip()
 
     image_info = extract_from_image(
-        image_path
+        image_path,
+        message
     )
 
     query = image_to_query(
-        image_info
+        image_info,
+        message
     )
 
+    extracted_query = {}
+    if message:
+        extracted_query = extract_query(message)
+
+    merged_constraints = {
+        "product_type": extracted_query.get("product_type") or image_info.get("product_type", ""),
+        "category": extracted_query.get("category") or image_info.get("category", ""),
+        "max_price": extracted_query.get("max_price") or DEFAULT_MAX_PRICE,
+        "features": list(dict.fromkeys((image_info.get("features", []) or []) + (extracted_query.get("features", []) or []))),
+        "color": image_info.get("color", ""),
+        "style": image_info.get("style", "")
+    }
+
+    max_price = merged_constraints.get("max_price") or DEFAULT_MAX_PRICE
+
     products = search_products(
-        query=query+" "+message,
-        max_price=DEFAULT_MAX_PRICE
+        query=query,
+        max_price=max_price
     )
 
     products = add_discount_percentage(
@@ -249,8 +278,8 @@ def recommend_from_image(image_path, message):
     )
 
     res = recommend(
-        query=query+" "+message,
-        extracted_query=image_info,
+        query=query,
+        extracted_query=merged_constraints,
         products=products[:10]
     )
 

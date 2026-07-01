@@ -59,6 +59,7 @@ hf_cache/
 tmp/
 temp/
 *.tmp
+/tests
 
 .python-version
 
